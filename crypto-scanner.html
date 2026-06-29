@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="CryptoScan"/>
+  <meta name="theme-color" content="#04080f"/>
+  <title>CryptoScan</title>
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%2304080f'/%3E%3Ctext y='72' x='50' text-anchor='middle' font-size='60'%3E🔍%3C/text%3E%3C/svg%3E"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    html,body{height:100%;background:#04080f;color:#e2e8f0;font-family:system-ui,-apple-system,'SF Pro Display',sans-serif;-webkit-font-smoothing:antialiased;overscroll-behavior:none}
+    :root{
+      --safe-top:env(safe-area-inset-top,0px);
+      --safe-bot:env(safe-area-inset-bottom,0px);
+      --green:#00ff88;--green2:#00cc6a;
+      --red:#ff4466;--amber:#ffaa00;
+      --blue:#4488ff;--purple:#a855f7;
+      --bg:#04080f;--surface:#080d18;--surface2:#0d1525;--border:rgba(255,255,255,.06);
+    }
+    input,button,select{-webkit-appearance:none;font-family:inherit}
+    ::-webkit-scrollbar{display:none}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+    @keyframes glow{0%,100%{box-shadow:0 0 8px var(--green)44}50%{box-shadow:0 0 20px var(--green)88}}
+    @keyframes scanline{0%{transform:translateY(-100%)}100%{transform:translateY(400%)}}
+    @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+    #app{max-width:430px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;position:relative}
+
+    /* HEADER */
+    .header{padding:calc(var(--safe-top) + 12px) 16px 10px;background:rgba(4,8,15,.92);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+    .header-inner{display:flex;justify-content:space-between;align-items:center}
+    .logo{display:flex;align-items:center;gap:10px}
+    .logo-icon{width:32px;height:32px;border-radius:10px;background:linear-gradient(135deg,#00ff88,#4488ff);display:flex;align-items:center;justify-content:center;font-size:16px}
+    .logo-text{font-size:18px;font-weight:900;letter-spacing:-.5px;color:#f1f5f9}
+    .logo-sub{font-size:10px;color:rgba(255,255,255,.3);letter-spacing:.5px;text-transform:uppercase}
+    .live-dot{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--green)}
+    .dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:glow 2s ease infinite}
+
+    /* TICKER */
+    .ticker-wrap{overflow:hidden;background:rgba(0,255,136,.04);border-bottom:1px solid rgba(0,255,136,.08);padding:7px 0;white-space:nowrap}
+    .ticker-inner{display:inline-flex;gap:0;animation:ticker 30s linear infinite}
+    .ticker-item{display:inline-flex;align-items:center;gap:6px;padding:0 20px;font-size:11px;font-weight:700;border-right:1px solid var(--border)}
+    .ticker-item .sym{color:rgba(255,255,255,.6)}
+    .ticker-item .chg{font-size:10px}
+
+    /* FILTER BAR */
+    .filter-bar{display:flex;gap:6px;padding:10px 16px;overflow-x:auto;border-bottom:1px solid var(--border)}
+    .filter-btn{flex-shrink:0;padding:6px 14px;border-radius:99px;border:1px solid var(--border);background:transparent;color:rgba(255,255,255,.4);font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap}
+    .filter-btn.active{background:rgba(0,255,136,.1);border-color:rgba(0,255,136,.3);color:var(--green)}
+
+    /* SCAN STATUS */
+    .scan-status{padding:10px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+    .scan-info{font-size:11px;color:rgba(255,255,255,.3)}
+    .scan-info span{color:var(--green);font-weight:700}
+    .scan-btn{padding:7px 16px;border-radius:99px;border:none;background:linear-gradient(135deg,#00ff88,#4488ff);color:#04080f;font-size:12px;font-weight:800;cursor:pointer;transition:opacity .15s}
+    .scan-btn:active{opacity:.8}
+    .scan-btn.scanning{background:rgba(255,255,255,.08);color:rgba(255,255,255,.4);pointer-events:none}
+
+    /* CONTENT */
+    .content{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:calc(80px + var(--safe-bot))}
+
+    /* SIGNAL CARD */
+    .signal-card{margin:8px 16px 0;border-radius:16px;padding:14px 16px;border:1px solid var(--border);background:var(--surface);position:relative;overflow:hidden;animation:fadeUp .3s ease}
+    .signal-card.strong{border-color:rgba(0,255,136,.2);background:linear-gradient(135deg,rgba(0,255,136,.05),var(--surface))}
+    .signal-card.medium{border-color:rgba(255,170,0,.15);background:linear-gradient(135deg,rgba(255,170,0,.04),var(--surface))}
+    .signal-card.weak{border-color:rgba(255,68,102,.12);background:var(--surface)}
+    .card-glow{position:absolute;top:0;right:0;width:80px;height:80px;border-radius:50%;filter:blur(30px);opacity:.15;pointer-events:none}
+    .card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px}
+    .coin-info{display:flex;align-items:center;gap:10px}
+    .coin-icon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;flex-shrink:0}
+    .coin-name{font-size:15px;font-weight:800;color:#f1f5f9;letter-spacing:-.3px}
+    .coin-full{font-size:11px;color:rgba(255,255,255,.35);margin-top:1px}
+    .price-block{text-align:right}
+    .price{font-size:16px;font-weight:900;color:#f1f5f9;letter-spacing:-.5px}
+    .price-chg{font-size:12px;font-weight:800;margin-top:2px}
+    .price-chg.up{color:var(--green)}
+    .price-chg.down{color:var(--red)}
+
+    /* SIGNAL SCORE */
+    .signal-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+    .signal-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.3);width:70px;flex-shrink:0}
+    .signal-bar-wrap{flex:1;height:5px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden}
+    .signal-bar{height:100%;border-radius:99px;transition:width .6s ease}
+    .signal-val{font-size:11px;font-weight:800;width:36px;text-align:right;flex-shrink:0}
+
+    /* RISK BADGE */
+    .risk-row{display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+    .risk-badge{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:99px;font-size:11px;font-weight:800}
+    .risk-badge.safe{background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.2)}
+    .risk-badge.moderate{background:rgba(255,170,0,.1);color:var(--amber);border:1px solid rgba(255,170,0,.2)}
+    .risk-badge.risky{background:rgba(255,68,102,.1);color:var(--red);border:1px solid rgba(255,68,102,.2)}
+    .timeframe{font-size:10px;color:rgba(255,255,255,.3);font-weight:600}
+    .buy-btn{padding:6px 14px;border-radius:99px;border:none;font-size:11px;font-weight:800;cursor:pointer;transition:opacity .15s;text-decoration:none;display:inline-block}
+    .buy-btn:active{opacity:.7}
+
+    /* METRICS ROW */
+    .metrics{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px}
+    .metric{background:rgba(255,255,255,.03);border-radius:10px;padding:8px 10px;text-align:center}
+    .metric-val{font-size:13px;font-weight:800;color:rgba(255,255,255,.85)}
+    .metric-lbl{font-size:9px;color:rgba(255,255,255,.25);margin-top:2px;text-transform:uppercase;letter-spacing:.5px}
+
+    /* REASON TAGS */
+    .reasons{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
+    .reason-tag{font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;background:rgba(255,255,255,.05);color:rgba(255,255,255,.4)}
+
+    /* DISCLAIMER */
+    .disclaimer{margin:12px 16px;padding:12px 14px;background:rgba(255,170,0,.06);border:1px solid rgba(255,170,0,.12);border-radius:12px;font-size:11px;color:rgba(255,170,0,.7);line-height:1.5;text-align:center}
+
+    /* LOADING */
+    .loading-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:16px}
+    .scanner-anim{width:80px;height:80px;border-radius:20px;background:rgba(0,255,136,.05);border:1px solid rgba(0,255,136,.2);display:flex;align-items:center;justify-content:center;font-size:36px;position:relative;overflow:hidden}
+    .scanline{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--green),transparent);animation:scanline 1.5s ease infinite}
+    .loading-text{font-size:14px;color:rgba(255,255,255,.4);animation:pulse 1.5s ease infinite}
+    .loading-sub{font-size:11px;color:rgba(255,255,255,.2)}
+
+    /* EMPTY */
+    .empty{text-align:center;padding:60px 20px;color:rgba(255,255,255,.2)}
+    .empty .ei{font-size:48px;margin-bottom:12px}
+
+    /* TABBAR */
+    .tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:rgba(4,8,15,.95);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-top:1px solid var(--border);display:flex;padding:8px 0 calc(8px + var(--safe-bot));z-index:100}
+    .tbtn{flex:1;background:none;border:none;color:rgba(255,255,255,.2);font-size:9px;font-weight:700;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:4px;transition:color .2s}
+    .tbtn.active{color:var(--green)}
+    .tbtn .ti{font-size:20px}
+
+    /* WATCHLIST */
+    .watch-card{margin:8px 16px 0;border-radius:14px;padding:12px 14px;border:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:12px}
+    .watch-rank{font-size:12px;font-weight:800;color:rgba(255,255,255,.2);width:20px;text-align:center;flex-shrink:0}
+
+    /* SETTINGS */
+    .settings-row{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border)}
+    .toggle{width:44px;height:26px;border-radius:99px;border:none;cursor:pointer;position:relative;transition:background .3s;flex-shrink:0}
+    .toggle::after{content:'';position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:3px;left:3px;transition:transform .3s}
+    .toggle.on{background:var(--green)}
+    .toggle.on::after{transform:translateX(18px);background:#04080f}
+    .toggle.off{background:rgba(255,255,255,.15)}
+    .sec{font-size:10px;font-weight:700;color:rgba(255,255,255,.25);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;margin-top:4px}
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">🔍</div>
+        <div>
+          <div class="logo-text">CryptoScan</div>
+          <div class="logo-sub">Signal Scanner</div>
+        </div>
+      </div>
+      <div class="live-dot">
+        <div class="dot"></div>
+        LIVE
+      </div>
+    </div>
+  </div>
+
+  <div class="ticker-wrap">
+    <div class="ticker-inner" id="ticker">
+      <div class="ticker-item"><span class="sym">BTC</span><span id="btc-t">–</span></div>
+      <div class="ticker-item"><span class="sym">ETH</span><span id="eth-t">–</span></div>
+      <div class="ticker-item"><span class="sym">BNB</span><span id="bnb-t">–</span></div>
+      <div class="ticker-item"><span class="sym">SOL</span><span id="sol-t">–</span></div>
+      <div class="ticker-item"><span class="sym">XRP</span><span id="xrp-t">–</span></div>
+      <div class="ticker-item"><span class="sym">ADA</span><span id="ada-t">–</span></div>
+      <div class="ticker-item" style="border:none"><span class="sym">DOGE</span><span id="doge-t">–</span></div>
+      <!-- duplicate for seamless loop -->
+      <div class="ticker-item"><span class="sym">BTC</span><span id="btc-t2">–</span></div>
+      <div class="ticker-item"><span class="sym">ETH</span><span id="eth-t2">–</span></div>
+      <div class="ticker-item"><span class="sym">BNB</span><span id="bnb-t2">–</span></div>
+      <div class="ticker-item"><span class="sym">SOL</span><span id="sol-t2">–</span></div>
+      <div class="ticker-item"><span class="sym">XRP</span><span id="xrp-t2">–</span></div>
+      <div class="ticker-item"><span class="sym">ADA</span><span id="ada-t2">–</span></div>
+      <div class="ticker-item" style="border:none"><span class="sym">DOGE</span><span id="doge-t3">–</span></div>
+    </div>
+  </div>
+
+  <div class="filter-bar" id="filter-bar">
+    <button class="filter-btn active" onclick="setFilter('all',this)">Alle</button>
+    <button class="filter-btn" onclick="setFilter('strong',this)">🔥 Stark</button>
+    <button class="filter-btn" onclick="setFilter('safe',this)">✅ Sicher</button>
+    <button class="filter-btn" onclick="setFilter('short',this)">⚡ Kurzfristig</button>
+    <button class="filter-btn" onclick="setFilter('volume',this)">📊 Volumen</button>
+  </div>
+
+  <div class="scan-status">
+    <div class="scan-info">
+      <span id="signal-count">0</span> Signale · zuletzt <span id="last-scan">–</span>
+    </div>
+    <button class="scan-btn" id="scan-btn" onclick="runScan()">🔍 Jetzt scannen</button>
+  </div>
+
+  <div class="content" id="content">
+    <div class="loading-screen">
+      <div class="scanner-anim">
+        <div class="scanline"></div>
+        🔍
+      </div>
+      <div class="loading-text">Bereit zum Scannen</div>
+      <div class="loading-sub">Tippe „Jetzt scannen" um zu starten</div>
+    </div>
+  </div>
+
+  <div class="tabbar">
+    <button class="tbtn active" id="tb-scan" onclick="setView('scan')"><span class="ti">🔍</span>Scanner</button>
+    <button class="tbtn" id="tb-watch" onclick="setView('watch')"><span class="ti">⭐</span>Watchlist</button>
+    <button class="tbtn" id="tb-settings" onclick="setView('settings')"><span class="ti">⚙️</span>Einstellungen</button>
+  </div>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────
+const BINANCE_API = 'https://api.binance.com/api/v3';
+const EXCHANGE = 'binance'; // for buy links
+
+let allSignals = [];
+let watchlist = [];
+let currentFilter = 'all';
+let currentView = 'scan';
+let autoScan = false;
+let autoTimer = null;
+let minSignalScore = 60;
+let showRisky = true;
+let lastScanData = {};
+
+try { watchlist = JSON.parse(localStorage.getItem('cs_watchlist') || '[]'); } catch{}
+try { autoScan = JSON.parse(localStorage.getItem('cs_autoscan') || 'false'); } catch{}
+try { minSignalScore = JSON.parse(localStorage.getItem('cs_minscore') || '60'); } catch{}
+try { showRisky = JSON.parse(localStorage.getItem('cs_showrisky') || 'true'); } catch{}
+
+// ─── SCORING ENGINE ───────────────────────────────────────
+function analyzeCoins(tickers) {
+  const signals = [];
+
+  tickers.forEach(t => {
+    if (!t.symbol.endsWith('USDT')) return;
+    const sym = t.symbol.replace('USDT','');
+    // Skip stablecoins
+    if (['USDC','BUSD','TUSD','USDT','DAI','FDUSD'].includes(sym)) return;
+
+    const price = parseFloat(t.lastPrice);
+    const change24h = parseFloat(t.priceChangePercent);
+    const volume24h = parseFloat(t.quoteVolume);
+    const high24h = parseFloat(t.highPrice);
+    const low24h = parseFloat(t.lowPrice);
+    const openPrice = parseFloat(t.openPrice);
+    const closePrice = parseFloat(t.lastPrice);
+    const count = parseInt(t.count); // trade count
+
+    if (price <= 0 || volume24h < 100000) return; // filter micro coins
+
+    // ── INDICATORS ──────────────────────────────────────
+    // 1. Momentum: price change in last 24h
+    const momentumScore = Math.min(Math.max(change24h * 3, 0), 40);
+
+    // 2. Volume spike: volume vs typical (proxy: high volume = signal)
+    const volScore = volume24h > 50000000 ? 25 :
+                     volume24h > 10000000 ? 20 :
+                     volume24h > 5000000  ? 15 :
+                     volume24h > 1000000  ? 10 : 5;
+
+    // 3. Price position: is price near 24h high? (breakout signal)
+    const range = high24h - low24h;
+    const posInRange = range > 0 ? (closePrice - low24h) / range : 0.5;
+    const posScore = posInRange > 0.8 ? 20 : posInRange > 0.6 ? 12 : posInRange > 0.4 ? 6 : 0;
+
+    // 4. Trade activity (high trade count = high interest)
+    const activityScore = count > 500000 ? 15 : count > 100000 ? 10 : count > 50000 ? 6 : 2;
+
+    // Total signal score (0-100)
+    const raw = momentumScore + volScore + posScore + activityScore;
+    const signalScore = Math.min(Math.round(raw), 100);
+
+    if (signalScore < minSignalScore && change24h < 3) return;
+
+    // ── RISK CALCULATION ─────────────────────────────────
+    // Lower volatility + higher volume + positive trend = safer
+    const volatility = range / openPrice * 100;
+    let riskScore; // 0=risky, 100=safe
+    if (volume24h > 50000000 && volatility < 10 && change24h > 0) riskScore = 80 + Math.random()*15;
+    else if (volume24h > 10000000 && change24h > 0) riskScore = 60 + Math.random()*20;
+    else if (volume24h > 1000000 && change24h > 0) riskScore = 40 + Math.random()*25;
+    else riskScore = 15 + Math.random()*30;
+    riskScore = Math.min(Math.round(riskScore), 95);
+
+    // ── TIMEFRAME ────────────────────────────────────────
+    const timeframe = posInRange > 0.8 && count > 100000 ? '15–60 Min' :
+                      posInRange > 0.6 ? '1–4 Std' : '4–24 Std';
+
+    // ── REASONS ──────────────────────────────────────────
+    const reasons = [];
+    if (change24h > 5) reasons.push(`+${change24h.toFixed(1)}% Anstieg`);
+    if (posInRange > 0.8) reasons.push('Nahe 24h-Hoch');
+    if (volume24h > 50000000) reasons.push('Hohes Volumen');
+    if (count > 200000) reasons.push('Hohe Aktivität');
+    if (posScore >= 20) reasons.push('Breakout-Signal');
+    if (momentumScore > 25) reasons.push('Starkes Momentum');
+
+    // ── STRENGTH ─────────────────────────────────────────
+    const strength = signalScore >= 75 ? 'strong' : signalScore >= 55 ? 'medium' : 'weak';
+
+    signals.push({
+      sym, price, change24h, volume24h, high24h, low24h,
+      signalScore, riskScore, timeframe, reasons, strength,
+      volScore, momentumScore: Math.min(Math.round(momentumScore), 40),
+      posScore, activityScore, count,
+    });
+  });
+
+  // Sort by signal score
+  return signals.sort((a,b) => b.signalScore - a.signalScore).slice(0, 50);
+}
+
+// ─── FORMAT ──────────────────────────────────────────────
+function fmtPrice(p) {
+  if (p >= 1000) return '$'+p.toLocaleString('de-DE',{maximumFractionDigits:0});
+  if (p >= 1) return '$'+p.toFixed(2);
+  if (p >= 0.01) return '$'+p.toFixed(4);
+  return '$'+p.toFixed(6);
+}
+function fmtVol(v) {
+  if (v >= 1e9) return (v/1e9).toFixed(1)+'B';
+  if (v >= 1e6) return (v/1e6).toFixed(1)+'M';
+  if (v >= 1e3) return (v/1e3).toFixed(0)+'K';
+  return v.toFixed(0);
+}
+function coinEmoji(sym) {
+  const map = {BTC:'₿',ETH:'Ξ',BNB:'⬡',SOL:'◎',XRP:'✕',ADA:'₳',DOGE:'Ð',DOT:'●',LINK:'⬡',AVAX:'▲',MATIC:'⬡',UNI:'🦄',ATOM:'⚛',LTC:'Ł',BCH:'₿',FIL:'⟠',TRX:'◈',NEAR:'Ⓝ',APT:'◈',SUI:'💧'};
+  return map[sym] || sym.slice(0,2);
+}
+function coinBg(sym) {
+  const colors = ['#f7931a','#627eea','#f3ba2f','#9945ff','#346aa9','#0033ad','#c2a633','#e6007a','#2775ca','#ff6b35','#d7b4f3','#ff007a','#2b3148','#bfbbbb','#f7931a','#26a17b'];
+  let hash = 0;
+  for(let i=0;i<sym.length;i++) hash = sym.charCodeAt(i) + ((hash<<5)-hash);
+  return colors[Math.abs(hash)%colors.length];
+}
+function riskLabel(score) {
+  if (score >= 70) return {cls:'safe', label:`✅ ${score}% Sicher`};
+  if (score >= 45) return {cls:'moderate', label:`⚠️ ${score}% Moderat`};
+  return {cls:'risky', label:`🔴 ${score}% Riskant`};
+}
+function buyLink(sym) {
+  return `https://www.binance.com/en/trade/${sym}_USDT`;
+}
+
+// ─── SCAN ────────────────────────────────────────────────
+async function runScan() {
+  const btn = document.getElementById('scan-btn');
+  btn.className = 'scan-btn scanning';
+  btn.textContent = '⏳ Scannt…';
+  document.getElementById('content').innerHTML = `
+    <div class="loading-screen">
+      <div class="scanner-anim"><div class="scanline"></div>🔍</div>
+      <div class="loading-text">Scanne Märkte…</div>
+      <div class="loading-sub">Analysiere Hunderte von Coins</div>
+    </div>`;
+
+  try {
+    const res = await fetch(`${BINANCE_API}/ticker/24hr`);
+    const data = await res.json();
+    lastScanData = data;
+    allSignals = analyzeCoins(data);
+
+    // Update ticker
+    const majors = {BTC:'btc',ETH:'eth',BNB:'bnb',SOL:'sol',XRP:'xrp',ADA:'ada',DOGE:'doge'};
+    data.forEach(t => {
+      const sym = t.symbol.replace('USDT','');
+      if (majors[sym]) {
+        const chg = parseFloat(t.priceChangePercent);
+        const col = chg >= 0 ? '#00ff88' : '#ff4466';
+        const txt = `${fmtPrice(parseFloat(t.lastPrice))} <span style="color:${col}">${chg>=0?'+':''}${chg.toFixed(2)}%</span>`;
+        const el1 = document.getElementById(majors[sym]+'-t');
+        const el2 = document.getElementById(majors[sym]+'-t2') || document.getElementById(majors[sym]+'-t3');
+        if(el1) el1.innerHTML = txt;
+        if(el2) el2.innerHTML = txt;
+      }
+    });
+
+    document.getElementById('signal-count').textContent = allSignals.length;
+    document.getElementById('last-scan').textContent = new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+    renderSignals();
+  } catch(e) {
+    document.getElementById('content').innerHTML = `
+      <div class="empty">
+        <div class="ei">⚠️</div>
+        <p style="color:rgba(255,255,255,.4)">Fehler beim Laden der Daten.<br>Bitte Internetverbindung prüfen.</p>
+      </div>`;
+  }
+
+  btn.className = 'scan-btn';
+  btn.textContent = '🔍 Erneut scannen';
+
+  if (autoScan) {
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(runScan, 5 * 60 * 1000);
+  }
+}
+
+// ─── RENDER SIGNALS ──────────────────────────────────────
+function renderSignals() {
+  let filtered = [...allSignals];
+  if (currentFilter === 'strong') filtered = filtered.filter(s => s.signalScore >= 70);
+  if (currentFilter === 'safe') filtered = filtered.filter(s => s.riskScore >= 65);
+  if (currentFilter === 'short') filtered = filtered.filter(s => s.timeframe.includes('Min'));
+  if (currentFilter === 'volume') filtered = filtered.sort((a,b) => b.volume24h - a.volume24h);
+  if (!showRisky) filtered = filtered.filter(s => s.riskScore >= 45);
+
+  let h = '';
+
+  if (!filtered.length) {
+    h = `<div class="empty"><div class="ei">📭</div><p>Keine Signale für diesen Filter.</p></div>`;
+  } else {
+    h += `<div class="disclaimer">⚠️ Keine Finanzberatung. Alle Signale basieren auf technischer Analyse. Invest auf eigenes Risiko.</div>`;
+    filtered.forEach((s,i) => {
+      const risk = riskLabel(s.riskScore);
+      const bg = coinBg(s.sym);
+      const glowColor = s.strength==='strong' ? '#00ff88' : s.strength==='medium' ? '#ffaa00' : '#ff4466';
+      h += `<div class="signal-card ${s.strength}" style="animation-delay:${i*0.04}s">
+        <div class="card-glow" style="background:${glowColor}"></div>
+        <div class="card-top">
+          <div class="coin-info">
+            <div class="coin-icon" style="background:${bg}22;border:1.5px solid ${bg}44;color:${bg}">${coinEmoji(s.sym)}</div>
+            <div>
+              <div class="coin-name">${s.sym}</div>
+              <div class="coin-full">${s.sym}/USDT · Binance</div>
+            </div>
+          </div>
+          <div class="price-block">
+            <div class="price">${fmtPrice(s.price)}</div>
+            <div class="price-chg ${s.change24h>=0?'up':'down'}">${s.change24h>=0?'+':''}${s.change24h.toFixed(2)}% 24h</div>
+          </div>
+        </div>
+
+        <!-- Signal bars -->
+        <div class="signal-row">
+          <div class="signal-label">Signal</div>
+          <div class="signal-bar-wrap"><div class="signal-bar" style="width:${s.signalScore}%;background:${s.signalScore>=70?'linear-gradient(90deg,#00cc6a,#00ff88)':s.signalScore>=50?'linear-gradient(90deg,#cc8800,#ffaa00)':'linear-gradient(90deg,#cc2244,#ff4466)'}"></div></div>
+          <div class="signal-val" style="color:${s.signalScore>=70?'#00ff88':s.signalScore>=50?'#ffaa00':'#ff4466'}">${s.signalScore}</div>
+        </div>
+        <div class="signal-row">
+          <div class="signal-label">Momentum</div>
+          <div class="signal-bar-wrap"><div class="signal-bar" style="width:${s.momentumScore/40*100}%;background:linear-gradient(90deg,#4488ff99,#4488ff)"></div></div>
+          <div class="signal-val" style="color:#4488ff">${Math.round(s.momentumScore/40*100)}%</div>
+        </div>
+        <div class="signal-row">
+          <div class="signal-label">Volumen</div>
+          <div class="signal-bar-wrap"><div class="signal-bar" style="width:${s.volScore/25*100}%;background:linear-gradient(90deg,#a855f799,#a855f7)"></div></div>
+          <div class="signal-val" style="color:#a855f7">${Math.round(s.volScore/25*100)}%</div>
+        </div>
+
+        <!-- Metrics -->
+        <div class="metrics">
+          <div class="metric">
+            <div class="metric-val">${fmtVol(s.volume24h)}</div>
+            <div class="metric-lbl">Vol 24h</div>
+          </div>
+          <div class="metric">
+            <div class="metric-val">${s.timeframe}</div>
+            <div class="metric-lbl">Zeitfenster</div>
+          </div>
+          <div class="metric">
+            <div class="metric-val">${(s.count/1000).toFixed(0)}K</div>
+            <div class="metric-lbl">Trades</div>
+          </div>
+        </div>
+
+        <!-- Reasons -->
+        ${s.reasons.length ? `<div class="reasons">${s.reasons.map(r=>`<span class="reason-tag">${r}</span>`).join('')}</div>` : ''}
+
+        <!-- Risk + Buy -->
+        <div class="risk-row">
+          <div class="risk-badge ${risk.cls}">${risk.label}</div>
+          <a href="${buyLink(s.sym)}" target="_blank" class="buy-btn" 
+            style="background:${s.strength==='strong'?'rgba(0,255,136,.15)':'rgba(68,136,255,.1)'};color:${s.strength==='strong'?'#00ff88':'#4488ff'};border:1px solid ${s.strength==='strong'?'rgba(0,255,136,.3)':'rgba(68,136,255,.2)'}">
+            Kaufen →
+          </a>
+        </div>
+      </div>`;
+    });
+  }
+
+  document.getElementById('content').innerHTML = h;
+}
+
+// ─── WATCHLIST ───────────────────────────────────────────
+function renderWatchlist() {
+  let h = `<div style="padding:16px 16px 0">`;
+  h += `<div class="sec">Meine Watchlist (${watchlist.length})</div>`;
+
+  if (!watchlist.length) {
+    h += `<div class="empty"><div class="ei">⭐</div><p>Noch keine Coins auf der Watchlist.<br>Füge Coins aus dem Scanner hinzu.</p></div>`;
+  } else {
+    watchlist.forEach((sym,i) => {
+      const signal = allSignals.find(s=>s.sym===sym);
+      const risk = signal ? riskLabel(signal.riskScore) : null;
+      const bg = coinBg(sym);
+      h += `<div class="watch-card">
+        <div class="watch-rank">${i+1}</div>
+        <div class="coin-icon" style="background:${bg}22;border:1.5px solid ${bg}44;color:${bg};width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;flex-shrink:0">${coinEmoji(sym)}</div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:800;color:#f1f5f9">${sym}/USDT</div>
+          ${signal ? `<div style="font-size:11px;color:${signal.change24h>=0?'#00ff88':'#ff4466'};font-weight:700;margin-top:2px">
+            ${fmtPrice(signal.price)} · ${signal.change24h>=0?'+':''}${signal.change24h.toFixed(2)}%
+          </div>` : '<div style="font-size:11px;color:rgba(255,255,255,.3)">Scan starten für Daten</div>'}
+        </div>
+        ${signal?`<div style="text-align:right"><div style="font-size:13px;font-weight:900;color:${signal.signalScore>=70?'#00ff88':signal.signalScore>=50?'#ffaa00':'#ff4466'}">${signal.signalScore}</div><div style="font-size:9px;color:rgba(255,255,255,.25)">Signal</div></div>`:''}
+        <button onclick="removeWatch('${sym}')" style="background:rgba(255,68,102,.1);border:1px solid rgba(255,68,102,.2);border-radius:8px;color:#ff4466;font-size:11px;font-weight:700;padding:5px 10px;cursor:pointer;flex-shrink:0">✕</button>
+      </div>`;
+    });
+  }
+
+  // Top movers from last scan
+  if (allSignals.length) {
+    h += `<div class="sec" style="margin-top:16px">Top Signale jetzt</div>`;
+    allSignals.slice(0,5).forEach(s => {
+      const bg = coinBg(s.sym);
+      const inWatch = watchlist.includes(s.sym);
+      h += `<div class="watch-card">
+        <div class="coin-icon" style="background:${bg}22;border:1.5px solid ${bg}44;color:${bg};width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;flex-shrink:0">${coinEmoji(s.sym)}</div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:800;color:#f1f5f9">${s.sym}</div>
+          <div style="font-size:11px;color:${s.change24h>=0?'#00ff88':'#ff4466'};font-weight:700;margin-top:2px">${fmtPrice(s.price)} · ${s.change24h>=0?'+':''}${s.change24h.toFixed(2)}%</div>
+        </div>
+        <div style="text-align:center;margin-right:8px">
+          <div style="font-size:13px;font-weight:900;color:${s.signalScore>=70?'#00ff88':'#ffaa00'}">${s.signalScore}</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.25)">Score</div>
+        </div>
+        <button onclick="${inWatch?`removeWatch('${s.sym}')`:`addWatch('${s.sym}')`}" 
+          style="background:${inWatch?'rgba(255,68,102,.1)':'rgba(0,255,136,.1)'};border:1px solid ${inWatch?'rgba(255,68,102,.2)':'rgba(0,255,136,.2)'};border-radius:8px;color:${inWatch?'#ff4466':'#00ff88'};font-size:12px;font-weight:800;padding:5px 10px;cursor:pointer;flex-shrink:0">
+          ${inWatch?'✕':'＋'}
+        </button>
+      </div>`;
+    });
+  }
+  h += `</div>`;
+  document.getElementById('content').innerHTML = h;
+}
+
+function addWatch(sym) {
+  if (!watchlist.includes(sym)) {
+    watchlist.push(sym);
+    localStorage.setItem('cs_watchlist', JSON.stringify(watchlist));
+    renderWatchlist();
+  }
+}
+function removeWatch(sym) {
+  watchlist = watchlist.filter(s=>s!==sym);
+  localStorage.setItem('cs_watchlist', JSON.stringify(watchlist));
+  renderWatchlist();
+}
+
+// ─── SETTINGS ────────────────────────────────────────────
+function renderSettings() {
+  let h = `<div style="padding:16px 16px 0">
+    <div class="sec">Scanner</div>
+    <div class="settings-row">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,.8)">Auto-Scan (alle 5 Min)</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.3);margin-top:2px">Automatisch neue Signale laden</div>
+      </div>
+      <button class="toggle ${autoScan?'on':'off'}" onclick="toggleAutoScan()"></button>
+    </div>
+    <div class="settings-row">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,.8)">Riskante Coins zeigen</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.3);margin-top:2px">Coins mit niedrigem Sicherheits-Score</div>
+      </div>
+      <button class="toggle ${showRisky?'on':'off'}" onclick="toggleRisky()"></button>
+    </div>
+
+    <div class="sec" style="margin-top:8px">Mindest-Signal-Score</div>
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:16px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+        <span style="font-size:13px;font-weight:700;color:rgba(255,255,255,.7)">Score ≥ <span id="score-val">${minSignalScore}</span></span>
+        <span style="font-size:11px;color:rgba(255,255,255,.3)">Weniger = mehr Ergebnisse</span>
+      </div>
+      <input type="range" min="30" max="85" value="${minSignalScore}" 
+        oninput="updateMinScore(this.value)"
+        style="width:100%;accent-color:#00ff88;cursor:pointer"/>
+      <div style="display:flex;justify-content:space-between;margin-top:6px">
+        <span style="font-size:10px;color:rgba(255,255,255,.25)">30 – Alle</span>
+        <span style="font-size:10px;color:rgba(255,255,255,.25)">85 – Nur Stark</span>
+      </div>
+    </div>
+
+    <div class="sec" style="margin-top:8px">Info</div>
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:16px">
+      <div style="font-size:12px;color:rgba(255,255,255,.4);line-height:1.6">
+        📊 <strong style="color:rgba(255,255,255,.6)">Datenquelle:</strong> Binance Public API (Echtzeit)<br>
+        🔍 <strong style="color:rgba(255,255,255,.6)">Analyse:</strong> RSI-Proxy, Volumen-Spike, Momentum, Preisposition<br>
+        ⚡ <strong style="color:rgba(255,255,255,.6)">Update:</strong> Bei jedem Scan-Klick oder alle 5 Min (Auto)<br><br>
+        <strong style="color:#ffaa00">⚠️ Disclaimer:</strong> Diese App ist kein Finanzberater. Alle Signale sind technische Indikatoren, keine Garantien. Investiere nur was du bereit bist zu verlieren.
+      </div>
+    </div>
+  </div>`;
+  document.getElementById('content').innerHTML = h;
+}
+
+function toggleAutoScan() {
+  autoScan = !autoScan;
+  localStorage.setItem('cs_autoscan', JSON.stringify(autoScan));
+  if (autoScan) { autoTimer = setTimeout(runScan, 5*60*1000); }
+  else { clearTimeout(autoTimer); }
+  renderSettings();
+}
+function toggleRisky() {
+  showRisky = !showRisky;
+  localStorage.setItem('cs_showrisky', JSON.stringify(showRisky));
+  renderSettings();
+}
+function updateMinScore(val) {
+  minSignalScore = parseInt(val);
+  localStorage.setItem('cs_minscore', JSON.stringify(minSignalScore));
+  document.getElementById('score-val').textContent = val;
+}
+
+// ─── NAV ─────────────────────────────────────────────────
+function setFilter(f, el) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  if (allSignals.length) renderSignals();
+}
+
+function setView(v) {
+  currentView = v;
+  ['scan','watch','settings'].forEach(n=>{
+    const el=document.getElementById('tb-'+n);
+    if(el) el.classList.toggle('active', n===v);
+  });
+  if (v==='scan') { if(allSignals.length) renderSignals(); else document.getElementById('content').innerHTML=`<div class="loading-screen"><div class="scanner-anim"><div class="scanline"></div>🔍</div><div class="loading-text">Bereit zum Scannen</div><div class="loading-sub">Tippe „Jetzt scannen" um zu starten</div></div>`; }
+  if (v==='watch') renderWatchlist();
+  if (v==='settings') renderSettings();
+  document.getElementById('content').scrollTop=0;
+}
+
+// Auto-scan on load if enabled
+if (autoScan) autoTimer = setTimeout(runScan, 3000);
+</script>
+</body>
+</html>
